@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Mint, Token, TokenAccount};
+use anchor_spl::token::{
+    self, Mint, MintTo, Token, TokenAccount, Transfer,
+};
 
 declare_id!("DTFgRcxF6KWyrsTqWM9Lpzdtcc6FF7NqePkEMawQ7xBA");
 
@@ -35,6 +37,91 @@ pub mod liquidity_vault {
         position.bump = ctx.bumps.position;
 
         msg!("User position created successfully");
+
+        Ok(())
+    }
+
+    pub fn deposit(
+        ctx: Context<Deposit>,
+        amount: u64,
+    ) -> Result<()> {
+
+        require!(amount > 0, VaultError::ZeroDeposit);
+
+        let total_assets = ctx.accounts.token_vault.amount;
+        let total_shares = ctx.accounts.share_mint.supply;
+
+        let shares: u64 = if total_shares == 0 {
+            require!(
+                total_assets == 0,
+                VaultError::InvalidVaultState
+            );
+            amount
+        } else {
+            require!(
+                total_assets > 0,
+                VaultError::InvalidVaultState
+            );
+
+            let calculated = (amount as u128)
+                .checked_mul(total_shares as u128)
+                .ok_or(VaultError::MathOverflow)?
+                .checked_div(total_assets as u128)
+                .ok_or(VaultError::MathOverflow)?;
+
+            u64::try_from(calculated)
+                .map_err(|_| error!(VaultError::MathOverflow))?
+        };
+
+        require!(shares > 0, VaultError::ZeroShares);
+
+        let transfer_accounts = Transfer {
+            from: ctx.accounts.user_token_account.to_account_info(),
+            to: ctx.accounts.token_vault.to_account_info(),
+            authority: ctx.accounts.user.to_account_info(),
+        };
+
+        let transfer_ctx = CpiContext::new(
+            ctx.accounts.token_program.key(),
+            transfer_accounts,
+        );
+
+        token::transfer(transfer_ctx, amount)?;
+
+        let signer_seeds: &[&[u8]] = &[
+            b"vault",
+            &[ctx.accounts.vault.bump],
+        ];
+        let signer = &[signer_seeds];
+
+        let mint_accounts = MintTo {
+            mint: ctx.accounts.share_mint.to_account_info(),
+            to: ctx.accounts.user_share_account.to_account_info(),
+            authority: ctx.accounts.vault.to_account_info(),
+        };
+
+        let mint_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.key(),
+            mint_accounts,
+            signer,
+        );
+
+        token::mint_to(mint_ctx, shares)?;
+
+        let vault = &mut ctx.accounts.vault;
+
+        vault.total_deposited = vault.total_deposited
+            .checked_add(amount)
+            .ok_or(VaultError::MathOverflow)?;
+
+        let position = &mut ctx.accounts.position;
+
+        position.deposited_amount = position.deposited_amount
+            .checked_add(amount)
+            .ok_or(VaultError::MathOverflow)?;
+
+        msg!("Deposit amount: {}", amount);
+        msg!("Shares minted: {}", shares);
 
         Ok(())
     }
@@ -114,6 +201,79 @@ pub struct OpenPosition<'info> {
     pub system_program: Program<'info, System>,
 }
 
+
+#[derive(Accounts)]
+pub struct Deposit<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [b"vault"],
+        bump = vault.bump,
+        has_one = deposit_mint,
+        has_one = share_mint,
+        has_one = token_vault
+    )]
+    pub vault: Box<Account<'info, VaultState>>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"position",
+            vault.key().as_ref(),
+            user.key().as_ref()
+        ],
+        bump = position.bump,
+        constraint = position.owner == user.key(),
+        constraint = position.vault == vault.key()
+    )]
+    pub position: Box<Account<'info, UserPosition>>,
+
+    pub deposit_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"share_mint",
+            vault.key().as_ref()
+        ],
+        bump,
+        mint::authority = vault,
+        constraint = share_mint.decimals == deposit_mint.decimals
+    )]
+    pub share_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"token_vault",
+            vault.key().as_ref()
+        ],
+        bump,
+        token::mint = deposit_mint,
+        token::authority = vault
+    )]
+    pub token_vault: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        token::mint = deposit_mint,
+        token::authority = user
+    )]
+    pub user_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        token::mint = share_mint,
+        token::authority = user
+    )]
+    pub user_share_account: Box<Account<'info, TokenAccount>>,
+
+    pub token_program: Program<'info, Token>,
+}
+
+
 #[account]
 #[derive(InitSpace)]
 pub struct VaultState {
@@ -132,4 +292,19 @@ pub struct UserPosition {
     pub vault: Pubkey,
     pub deposited_amount: u64,
     pub bump: u8,
+}
+
+#[error_code]
+pub enum VaultError {
+    #[msg("Deposit must be greater than zero")]
+    ZeroDeposit,
+
+    #[msg("Calculated shares must be greater than zero")]
+    ZeroShares,
+
+    #[msg("Arithmetic overflow")]
+    MathOverflow,
+
+    #[msg("Invalid vault state")]
+    InvalidVaultState,
 }
