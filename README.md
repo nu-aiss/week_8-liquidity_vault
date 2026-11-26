@@ -348,6 +348,10 @@ CPI (Cross-Program Invocation) позволяет программе Liquidity V
 Полученная функциональность служит основой для следующих этапов Liquidity Vault.
 
 
+
+---
+
+
 ## Неделя 11 — AMM и концентрированная ликвидность (Raydium CLMM)
 ### Цель работы
 Создать два собственных SPL-токена в Solana Devnet, инициализировать CLMM-пул Raydium и вручную открыть позицию концентрированной ликвидности с использованием собственного кошелька.
@@ -424,3 +428,89 @@ npx tsx src/openPosition.ts --preview
 
 ### Результат
 В Solana Devnet созданы два SPL-токена, собственный CLMM-пул Raydium и открыта позиция концентрированной ликвидности. Адреса пула, NFT и аккаунта позиции сохранены для последующих этапов проекта.
+
+
+---
+
+## Неделя 12 — Raydium CLMM CPI Swap
+
+### Цель
+
+Реализовать обмен SPL-токенов через Raydium CLMM с использованием Cross-Program Invocation (CPI) внутри собственной программы Liquidity Vault.
+
+**Сеть:** Solana Devnet.
+
+### Что реализовано
+- Подключён официальный CPI-адаптер Raydium CLMM.
+- Добавлена инструкция `initialize_strategy` для создания токеновых хранилищ.
+- Созданы отдельные ATA для TOKEN A и TOKEN B под управлением Vault PDA.
+- Добавлена инструкция `swap_clmm` для обмена TOKEN A → TOKEN B.
+- Реализована авторизация администратора и подписание CPI через PDA.
+- Добавлена передача tick arrays через `remaining_accounts`.
+- Реализована защита от slippage через `minimum_amount_out`.
+- Выполнены симуляция и настоящий обмен в Devnet.
+
+### Адреса программы
+| Компонент | Адрес |
+|---|---|
+| Liquidity Vault | `DTFgRcxF6KWyrsTqWM9Lpzdtcc6FF7NqePkEMawQ7xBA` |
+| Vault PDA | `48rrZWJcu2hV8r9s8PrL7QM1re1LqaCtfsRr7q1LEuwv` |
+| Raydium CLMM | `DRayAUgENGQBKVaX8owNhgzkEDyoHTGVEGHVJT1E9pfH` |
+| CLMM Pool | `BLpJrvf6CYTAkMXg4S3xQrtSssh9b3uhMrUNk94KHD8R` |
+
+### Результаты обмена
+Проведён обмен **0.01 TOKEN A → TOKEN B**.
+
+| Показатель | Результат |
+|---|---:|
+| Входная сумма | 0.010000 TOKEN A |
+| Ожидаемый выход | 0.009974 TOKEN B |
+| Минимальный выход | 0.009874 TOKEN B |
+| Допустимый slippage | 1% |
+| Фактический выход | 0.009974 TOKEN B |
+| Compute units при симуляции | 74 627 |
+
+**Балансы Vault:**
+
+| Токен | До обмена | После обмена |
+|---|---:|---:|
+| TOKEN A | 0.100000 | 0.090000 |
+| TOKEN B | 0.000000 | 0.009974 |
+
+**Транзакция Devnet:**
+
+https://explorer.solana.com/tx/5kZDm5e8BQsCXTAzWJPx9v7tdzAFcJTMmaT47ty3S3ejbkvkngGL8wvc1CuJjZXbhSH1T35WqMSFCwP26uXvJCYx?cluster=devnet
+
+### Проверка защиты от slippage
+Дополнительно выполнен отрицательный тест.
+
+Для входной суммы `10000` минимальный выход был специально увеличен до `20000` единиц TOKEN B.
+
+Raydium отклонил транзакцию:
+
+- **Ошибка:** `TooLittleOutputReceived`
+- **Код ошибки:** `6018`
+- **Фактический расчётный выход:** `9973`
+- **Требуемый минимум:** `20000`
+
+После теста балансы остались неизменными: `0.09 TOKEN A` и `0.009974 TOKEN B`.
+
+Это подтверждает, что обмен отклоняется, если фактический выход меньше установленного минимума.
+
+### Основные файлы
+- `programs/liquidity_vault/src/lib.rs` — инструкции Liquidity Vault и CPI swap.
+- `vendor/raydium-clmm-cpi/` — CPI-адаптер Raydium.
+- `clmm-tools/src/week12Preflight.ts` — проверка Devnet и аккаунтов.
+- `clmm-tools/src/week12SwapQuote.ts` — расчёт суммы обмена и slippage.
+- `tests/week12_initialize_strategy.ts` — создание стратегии.
+- `tests/week12_swap.ts` — симуляция, обмен и тест slippage.
+
+### Итог
+На 12-й неделе реализована и проверена интеграция Liquidity Vault с Raydium CLMM через CPI.
+
+Успешно выполнены сборка Anchor, развёртывание в Devnet, инициализация стратегии, симуляция и реальный обмен SPL-токенов.
+
+Отрицательный тест подтвердил работу защиты от slippage.
+
+Все операции с CLMM-токенами выполняются через отдельные счета стратегии без смешивания с пользовательскими депозитами.
+
