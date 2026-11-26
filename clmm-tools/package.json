@@ -1,0 +1,22 @@
+{
+  "name": "clmm-tools",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "inspect": "tsx src/inspect.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@raydium-io/raydium-sdk-v2": "^0.1.132-alpha",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.95.8",
+    "bn.js": "^5.2.1",
+    "decimal.js": "^10.4.3"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.6",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

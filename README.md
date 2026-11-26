@@ -346,3 +346,81 @@ CPI (Cross-Program Invocation) позволяет программе Liquidity V
 Реализация демонстрирует работу SPL Token Program, сжигание токенов и авторизацию транзакций с помощью PDA.
 
 Полученная функциональность служит основой для следующих этапов Liquidity Vault.
+
+
+## Неделя 11 — AMM и концентрированная ликвидность (Raydium CLMM)
+### Цель работы
+Создать два собственных SPL-токена в Solana Devnet, инициализировать CLMM-пул Raydium и вручную открыть позицию концентрированной ликвидности с использованием собственного кошелька.
+
+### 1. Создание SPL-токенов
+Созданы два тестовых SPL-токена с точностью 6 десятичных знаков. На кошелёк выпущено по 10 000 токенов каждого вида.
+
+**TOKEN A:**
+`BbGbr6kU99qrS5oiNpPTBwC4mpw84wuN6ugVRQpA9Mii`
+
+**TOKEN B:**
+`ENbngk26rEp1PJ2yoSo6ufvUXiwWjEte3ZqNPVTAdMqb`
+
+### 2. Создание CLMM-пула Raydium
+Создан собственный CLMM-пул в сети Solana Devnet.
+
+- Pool ID: `BLpJrvf6CYTAkMXg4S3xQrtSssh9b3uhMrUNk94KHD8R`
+- Raydium CLMM Program: `DRayAUgENGQBKVaX8owNhgzkEDyoHTGVEGHVJT1E9pfH`
+- Начальная цена: 1 TOKEN A = 1 TOKEN B
+- Комиссия пула: 0,25%
+- Tick spacing: 60
+- Config ID: `CD4aJtX11cqTCAc83nxSPkkh5JW2yjD6uwHeovjqQ1qu`
+
+[Транзакция создания пула в Solana Explorer](https://explorer.solana.com/tx/2Busvnwa6TTwgotHGRhNrf3FLxTx4qSqH4HTpLUCZxBfTzncpqT7QEkGfkyGa1NNj8Djqt48VNXSHiyEqkP9Dyde?cluster=devnet)
+
+### 3. Открытие позиции ликвидности
+Позиция открыта вручную с собственного Devnet-кошелька с помощью Raydium SDK V2.
+
+**Параметры позиции:**
+| Параметр | Значение |
+|---|---|
+| Цена пула перед открытием | 1 TOKEN A = 1 TOKEN B |
+| Целевой диапазон | 0,90–1,10 |
+| Нижний тик | -1080 |
+| Верхний тик | 960 |
+| Фактическая нижняя цена | 0,89763244 |
+| Фактическая верхняя цена | 1,10075378 |
+| Входное количество TOKEN A | 10 |
+| Максимально допустимое TOKEN B | 11,328754 |
+
+Фактический диапазон немного отличается от целевого вследствие округления границ к допустимым тикам CLMM.
+
+**Обоснование диапазона:** выбран диапазон приблизительно ±10% относительно текущей цены. Он позволяет разместить ликвидность вблизи цены 1:1 и продемонстрировать механизм концентрированной ликвидности. Пока цена находится внутри диапазона, позиция может получать комиссии от обменов. При выходе цены за пределы диапазона позиция перестаёт участвовать в обменах до возвращения цены.
+
+### 4. Адреса позиции
+**NFT Mint:**
+`9ErAUz86M18xSy55PdmS8HCKHaKNf3notnAEh61NZ7QZ`
+
+**Position Account:**
+`69XiVNKZzLjTU4fLwGAvk8ibjQYidtWSzAjjX8hWocHV`
+
+[Транзакция открытия позиции](https://explorer.solana.com/tx/3WQPdjthrGBuZAMcU9PdbU5sjVVfd65dzWES7LTJHgDnjJJSqzZT35fhwsFfH45Hm8W8fLH6hmM4gZ5wx86wCqHw?cluster=devnet)
+
+[Аккаунт позиции в Solana Explorer](https://explorer.solana.com/account/69XiVNKZzLjTU4fLwGAvk8ibjQYidtWSzAjjX8hWocHV?cluster=devnet)
+
+[NFT позиции в Solana Explorer](https://explorer.solana.com/account/9ErAUz86M18xSy55PdmS8HCKHaKNf3notnAEh61NZ7QZ?cluster=devnet)
+
+### 5. Проверка и запуск
+Для работы с CLMM используется отдельный инструмент `clmm-tools`, который не изменяет Anchor-программу Liquidity Vault.
+
+```bash
+cd clmm-tools
+npm ci
+npm run typecheck
+npm run inspect
+```
+
+Для предварительного расчёта параметров новой позиции:
+```bash
+npx tsx src/openPosition.ts --preview
+```
+Команда `--preview` не отправляет транзакцию.
+Для создания новой позиции предусмотрена команда `--send`, которая отправляет транзакцию в Devnet. Повторный запуск без необходимости не требуется, поскольку позиция недели 11 уже создана.
+
+### Результат
+В Solana Devnet созданы два SPL-токена, собственный CLMM-пул Raydium и открыта позиция концентрированной ликвидности. Адреса пула, NFT и аккаунта позиции сохранены для последующих этапов проекта.

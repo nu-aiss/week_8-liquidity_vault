@@ -1,0 +1,27 @@
+{
+  "network": "devnet",
+  "owner": "6AafER3aefcKUgQacaqLWXor5CbDruAMNM8j9prbggfb",
+  "tokens": {
+    "mintA": "BbGbr6kU99qrS5oiNpPTBwC4mpw84wuN6ugVRQpA9Mii",
+    "mintB": "ENbngk26rEp1PJ2yoSo6ufvUXiwWjEte3ZqNPVTAdMqb",
+    "decimals": 6
+  },
+  "pool": {
+    "id": "BLpJrvf6CYTAkMXg4S3xQrtSssh9b3uhMrUNk94KHD8R",
+    "programId": "DRayAUgENGQBKVaX8owNhgzkEDyoHTGVEGHVJT1E9pfH",
+    "configId": "CD4aJtX11cqTCAc83nxSPkkh5JW2yjD6uwHeovjqQ1qu"
+  },
+  "position": {
+    "nftMint": "9ErAUz86M18xSy55PdmS8HCKHaKNf3notnAEh61NZ7QZ",
+    "personalPosition": "69XiVNKZzLjTU4fLwGAvk8ibjQYidtWSzAjjX8hWocHV",
+    "positionNftAccount": "2jKivnM6RLf28XXene1GSibyVY1SfgPCuhgEyGZFV6Re",
+    "tickLower": -1080,
+    "tickUpper": 960,
+    "priceLower": "0.89763244",
+    "priceUpper": "1.10075378",
+    "priceAtCreation": "1.00000000",
+    "depositA": "10",
+    "maxDepositB": "11.328754",
+    "txId": "3WQPdjthrGBuZAMcU9PdbU5sjVVfd65dzWES7LTJHgDnjJJSqzZT35fhwsFfH45Hm8W8fLH6hmM4gZ5wx86wCqHw"
+  }
+}
