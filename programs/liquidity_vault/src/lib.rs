@@ -1,11 +1,44 @@
-
 use anchor_lang::prelude::*;
-use anchor_spl::token::{
-    self, Burn, Mint, MintTo, Token, TokenAccount, Transfer,
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    memo::Memo,
+    token::{
+        self, Burn, Mint, MintTo, Token, TokenAccount, Transfer,
+    },
+    token_2022::Token2022,
+};
+use raydium_clmm_cpi::{
+    self,
+    cpi::{
+        self as raydium_cpi,
+        accounts::SwapSingleV2,
+    },
+    states::{
+        AmmConfig,
+        ObservationState,
+        PoolState,
+    },
 };
 
 declare_id!("DTFgRcxF6KWyrsTqWM9Lpzdtcc6FF7NqePkEMawQ7xBA");
 
+pub const TOKEN_A: Pubkey =
+    pubkey!("BbGbr6kU99qrS5oiNpPTBwC4mpw84wuN6ugVRQpA9Mii");
+
+pub const TOKEN_B: Pubkey =
+    pubkey!("ENbngk26rEp1PJ2yoSo6ufvUXiwWjEte3ZqNPVTAdMqb");
+
+pub const CLMM_POOL: Pubkey =
+    pubkey!("BLpJrvf6CYTAkMXg4S3xQrtSssh9b3uhMrUNk94KHD8R");
+
+pub const CLMM_CONFIG: Pubkey =
+    pubkey!("CD4aJtX11cqTCAc83nxSPkkh5JW2yjD6uwHeovjqQ1qu");
+
+pub const POOL_VAULT_A: Pubkey =
+    pubkey!("GhZ2VTpzXXmGAbxWKNZ4wFtYyC42WhvcYpsEwU1w3yqL");
+
+pub const POOL_VAULT_B: Pubkey =
+    pubkey!("AEhnX24oC7fuUeQe3sH8ByXAupEw2ryxW4jjWV3Sh6qZ");
 
 #[program]
 pub mod liquidity_vault {
@@ -77,8 +110,10 @@ pub mod liquidity_vault {
         require!(shares > 0, VaultError::ZeroShares);
 
         let transfer_accounts = Transfer {
-            from: ctx.accounts
-                .user_token_account.to_account_info(),
+            from: ctx
+                .accounts
+                .user_token_account
+                .to_account_info(),
             to: ctx.accounts.token_vault.to_account_info(),
             authority: ctx.accounts.user.to_account_info(),
         };
@@ -98,8 +133,10 @@ pub mod liquidity_vault {
 
         let mint_accounts = MintTo {
             mint: ctx.accounts.share_mint.to_account_info(),
-            to: ctx.accounts
-                .user_share_account.to_account_info(),
+            to: ctx
+                .accounts
+                .user_share_account
+                .to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         };
 
@@ -112,12 +149,16 @@ pub mod liquidity_vault {
         token::mint_to(mint_ctx, shares)?;
 
         let vault = &mut ctx.accounts.vault;
-        vault.total_deposited = vault.total_deposited
+
+        vault.total_deposited = vault
+            .total_deposited
             .checked_add(amount)
             .ok_or(VaultError::MathOverflow)?;
 
         let position = &mut ctx.accounts.position;
-        position.deposited_amount = position.deposited_amount
+
+        position.deposited_amount = position
+            .deposited_amount
             .checked_add(amount)
             .ok_or(VaultError::MathOverflow)?;
 
@@ -149,7 +190,6 @@ pub mod liquidity_vault {
             VaultError::InsufficientShares
         );
 
-        // Сумма вывода пропорциональна доле shares
         let calculated = (shares as u128)
             .checked_mul(total_assets as u128)
             .ok_or(VaultError::MathOverflow)?
@@ -171,8 +211,10 @@ pub mod liquidity_vault {
 
         let burn_accounts = Burn {
             mint: ctx.accounts.share_mint.to_account_info(),
-            from: ctx.accounts
-                .user_share_account.to_account_info(),
+            from: ctx
+                .accounts
+                .user_share_account
+                .to_account_info(),
             authority: ctx.accounts.user.to_account_info(),
         };
 
@@ -191,8 +233,10 @@ pub mod liquidity_vault {
 
         let transfer_accounts = Transfer {
             from: ctx.accounts.token_vault.to_account_info(),
-            to: ctx.accounts
-                .user_token_account.to_account_info(),
+            to: ctx
+                .accounts
+                .user_token_account
+                .to_account_info(),
             authority: ctx.accounts.vault.to_account_info(),
         };
 
@@ -209,8 +253,152 @@ pub mod liquidity_vault {
 
         Ok(())
     }
-}
 
+
+
+    pub fn initialize_strategy(
+        ctx: Context<InitializeStrategy>,
+    ) -> Result<()> {
+        msg!("Week 12: strategy initialized");
+        msg!(
+            "Strategy TOKEN A: {}",
+            ctx.accounts.strategy_token_a.key()
+        );
+        msg!(
+            "Strategy TOKEN B: {}",
+            ctx.accounts.strategy_token_b.key()
+        );
+        msg!(
+            "Authority PDA: {}",
+            ctx.accounts.vault.key()
+        );
+
+        Ok(())
+    }
+
+
+    pub fn swap_clmm<'info>(
+        ctx: Context<'info, SwapClmm<'info>>,
+        amount_in: u64,
+        minimum_amount_out: u64,
+    ) -> Result<()> {
+        require!(
+            amount_in > 0,
+            VaultError::ZeroSwapAmount
+        );
+
+        require!(
+            minimum_amount_out > 0,
+            VaultError::InvalidMinimumOutput
+        );
+
+        require!(
+            ctx.accounts.strategy_token_a.amount >= amount_in,
+            VaultError::InsufficientStrategyAssets
+        );
+
+        require!(
+            ctx.remaining_accounts.len() > 0,
+            VaultError::MissingTickArrays
+        );
+
+     
+        for account in ctx.remaining_accounts.iter() {
+            require_keys_eq!(
+                *account.owner,
+                raydium_clmm_cpi::ID,
+                VaultError::InvalidRemainingAccount
+            );
+
+            require!(
+                account.is_writable,
+                VaultError::InvalidRemainingAccount
+            );
+
+            require!(
+                !account.is_signer,
+                VaultError::InvalidRemainingAccount
+            );
+        }
+
+        let signer_seeds: &[&[u8]] = &[
+            b"vault",
+            &[ctx.accounts.vault.bump],
+        ];
+        let signer = &[signer_seeds];
+
+        let cpi_accounts = SwapSingleV2 {
+            payer: ctx.accounts.vault.to_account_info(),
+            amm_config: ctx.accounts.amm_config.to_account_info(),
+            pool_state: ctx.accounts.pool_state.to_account_info(),
+            input_token_account: ctx
+                .accounts
+                .strategy_token_a
+                .to_account_info(),
+            output_token_account: ctx
+                .accounts
+                .strategy_token_b
+                .to_account_info(),
+            input_vault: ctx
+                .accounts
+                .pool_vault_a
+                .to_account_info(),
+            output_vault: ctx
+                .accounts
+                .pool_vault_b
+                .to_account_info(),
+            observation_state: ctx
+                .accounts
+                .observation_state
+                .to_account_info(),
+            token_program: ctx
+                .accounts
+                .token_program
+                .to_account_info(),
+            token_program_2022: ctx
+                .accounts
+                .token_program_2022
+                .to_account_info(),
+            memo_program: ctx
+                .accounts
+                .memo_program
+                .to_account_info(),
+            input_vault_mint: ctx
+                .accounts
+                .token_a_mint
+                .to_account_info(),
+            output_vault_mint: ctx
+                .accounts
+                .token_b_mint
+                .to_account_info(),
+        };
+
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.raydium_program.key(),
+            cpi_accounts,
+            signer,
+        )
+        .with_remaining_accounts(
+            ctx.remaining_accounts.to_vec()
+        );
+
+        msg!("Week 12: invoking Raydium SwapV2");
+        msg!("Input TOKEN A: {}", amount_in);
+        msg!("Minimum TOKEN B: {}", minimum_amount_out);
+
+        raydium_cpi::swap_v2(
+            cpi_ctx,
+            amount_in,
+            minimum_amount_out,
+            0,
+            true,
+        )?;
+
+        msg!("Week 12: Raydium CPI swap succeeded");
+
+        Ok(())
+    }
+}
 
 #[derive(Accounts)]
 pub struct InitializeVault<'info> {
@@ -259,7 +447,6 @@ pub struct InitializeVault<'info> {
     pub system_program: Program<'info, System>,
 }
 
-
 #[derive(Accounts)]
 pub struct OpenPosition<'info> {
     #[account(mut)]
@@ -286,7 +473,6 @@ pub struct OpenPosition<'info> {
 
     pub system_program: Program<'info, System>,
 }
-
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
@@ -359,7 +545,6 @@ pub struct Deposit<'info> {
     pub token_program: Program<'info, Token>,
 }
 
-
 #[derive(Accounts)]
 pub struct Withdraw<'info> {
     #[account(mut)]
@@ -429,6 +614,120 @@ pub struct Withdraw<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+#[derive(Accounts)]
+pub struct InitializeStrategy<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    #[account(
+        seeds = [b"vault"],
+        bump = vault.bump,
+        constraint = vault.admin == admin.key()
+            @ VaultError::UnauthorizedAdmin
+    )]
+    pub vault: Box<Account<'info, VaultState>>,
+
+    #[account(address = TOKEN_A)]
+    pub token_a_mint: Box<Account<'info, Mint>>,
+
+    #[account(address = TOKEN_B)]
+    pub token_b_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        init,
+        payer = admin,
+        associated_token::mint = token_a_mint,
+        associated_token::authority = vault
+    )]
+    pub strategy_token_a: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        init,
+        payer = admin,
+        associated_token::mint = token_b_mint,
+        associated_token::authority = vault
+    )]
+    pub strategy_token_b: Box<Account<'info, TokenAccount>>,
+
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SwapClmm<'info> {
+    pub admin: Signer<'info>,
+
+    #[account(
+        seeds = [b"vault"],
+        bump = vault.bump,
+        constraint = vault.admin == admin.key()
+            @ VaultError::UnauthorizedAdmin
+    )]
+    pub vault: Box<Account<'info, VaultState>>,
+
+    #[account(address = TOKEN_A)]
+    pub token_a_mint: Box<Account<'info, Mint>>,
+
+    #[account(address = TOKEN_B)]
+    pub token_b_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        mut,
+        associated_token::mint = token_a_mint,
+        associated_token::authority = vault
+    )]
+    pub strategy_token_a: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        associated_token::mint = token_b_mint,
+        associated_token::authority = vault
+    )]
+    pub strategy_token_b: Box<Account<'info, TokenAccount>>,
+
+    #[account(address = CLMM_CONFIG)]
+    pub amm_config: Box<Account<'info, AmmConfig>>,
+
+    #[account(
+        mut,
+        address = CLMM_POOL
+    )]
+    pub pool_state: AccountLoader<'info, PoolState>,
+
+    #[account(
+        mut,
+        address = POOL_VAULT_A,
+        token::mint = token_a_mint,
+        token::authority = pool_state
+    )]
+    pub pool_vault_a: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        address = POOL_VAULT_B,
+        token::mint = token_b_mint,
+        token::authority = pool_state
+    )]
+    pub pool_vault_b: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        address = pool_state.load()?.observation_key
+    )]
+    pub observation_state:
+        AccountLoader<'info, ObservationState>,
+
+    pub token_program: Program<'info, Token>,
+    pub token_program_2022: Program<'info, Token2022>,
+    pub memo_program: Program<'info, Memo>,
+
+    #[account(address = raydium_clmm_cpi::ID)]
+    pub raydium_program: Program<
+        'info,
+        raydium_clmm_cpi::program::RaydiumClmm
+    >,
+}
 
 #[account]
 #[derive(InitSpace)]
@@ -449,7 +748,6 @@ pub struct UserPosition {
     pub deposited_amount: u64,
     pub bump: u8,
 }
-
 
 #[error_code]
 pub enum VaultError {
@@ -476,4 +774,22 @@ pub enum VaultError {
 
     #[msg("Calculated withdrawal amount is zero")]
     ZeroWithdrawalAmount,
+
+    #[msg("Only Vault administrator can perform this action")]
+    UnauthorizedAdmin,
+
+    #[msg("Swap amount must be greater than zero")]
+    ZeroSwapAmount,
+
+    #[msg("Minimum swap output must be greater than zero")]
+    InvalidMinimumOutput,
+
+    #[msg("Insufficient strategy token balance")]
+    InsufficientStrategyAssets,
+
+    #[msg("Swap requires tick array accounts")]
+    MissingTickArrays,
+
+    #[msg("Invalid additional Raydium account")]
+    InvalidRemainingAccount,
 }

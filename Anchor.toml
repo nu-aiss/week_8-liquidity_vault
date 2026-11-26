@@ -1,4 +1,5 @@
 [toolchain]
+anchor_version = "1.1.2"
 package_manager = "yarn"
 
 [features]
@@ -7,6 +8,7 @@ skip-lint = false
 
 [programs.localnet]
 liquidity_vault = "DTFgRcxF6KWyrsTqWM9Lpzdtcc6FF7NqePkEMawQ7xBA"
+
 [programs.devnet]
 liquidity_vault = "DTFgRcxF6KWyrsTqWM9Lpzdtcc6FF7NqePkEMawQ7xBA"
 
