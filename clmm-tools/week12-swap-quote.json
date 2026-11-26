@@ -1,0 +1,32 @@
+{
+  "network": "devnet",
+  "poolId": "BLpJrvf6CYTAkMXg4S3xQrtSssh9b3uhMrUNk94KHD8R",
+  "inputMint": "BbGbr6kU99qrS5oiNpPTBwC4mpw84wuN6ugVRQpA9Mii",
+  "outputMint": "ENbngk26rEp1PJ2yoSo6ufvUXiwWjEte3ZqNPVTAdMqb",
+  "inputAmountRaw": "10000",
+  "slippageBps": 100,
+  "quote": {
+    "allTrade": true,
+    "realAmountIn": {
+      "amount": "2710"
+    },
+    "amountOut": {
+      "amount": "26f6"
+    },
+    "minAmountOut": {
+      "amount": "2692"
+    },
+    "currentPrice": "1",
+    "executionPrice": "0.99990651302376976653",
+    "priceImpact": {
+      "numerator": "15c4420ce6",
+      "denominator": "038d7ea4c68000"
+    },
+    "fee": "19",
+    "remainingAccounts": [
+      "8nVWdxop2fSm2X7ay1qZ9p4fmL1w2SpaikefrJ7ybiEs",
+      "4w7cA6bdxFJgCrDyE5k2pLW97nZffHsRnoci16kzp7Pm"
+    ],
+    "executionPriceX64": "fffcefc18e0c279d"
+  }
+}

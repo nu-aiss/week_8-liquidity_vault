@@ -1,0 +1,44 @@
+{
+  "simulatedAt": "2026-11-26T23:12:10.362Z",
+  "network": "devnet",
+  "vault": "48rrZWJcu2hV8r9s8PrL7QM1re1LqaCtfsRr7q1LEuwv",
+  "pool": "BLpJrvf6CYTAkMXg4S3xQrtSssh9b3uhMrUNk94KHD8R",
+  "amountIn": "10000",
+  "minimumAmountOut": "20000",
+  "remainingAccounts": [
+    "8nVWdxop2fSm2X7ay1qZ9p4fmL1w2SpaikefrJ7ybiEs",
+    "4w7cA6bdxFJgCrDyE5k2pLW97nZffHsRnoci16kzp7Pm"
+  ],
+  "computeUnits": 73594,
+  "error": {
+    "InstructionError": [
+      0,
+      {
+        "Custom": 6018
+      }
+    ]
+  },
+  "logs": [
+    "Program DTFgRcxF6KWyrsTqWM9Lpzdtcc6FF7NqePkEMawQ7xBA invoke [1]",
+    "Program log: Instruction: SwapClmm",
+    "Program log: Week 12: invoking Raydium SwapV2",
+    "Program log: Input TOKEN A: 10000",
+    "Program log: Minimum TOKEN B: 20000",
+    "Program DRayAUgENGQBKVaX8owNhgzkEDyoHTGVEGHVJT1E9pfH invoke [2]",
+    "Program log: Instruction: SwapV2",
+    "Program data: QMbN6CYIceKZqGVZp4X3vwshWnZ3vFi11JbVUJN+aooR9pSV6c36Xi6Wf0GUrHkjmFKOTeQzJmAaALf/Yth4+iWqUF3FYvf5qg2J3QrZ/a9ZL5Zz/BsP9e79qNztHq1yxBqNCB3hu6MvmeJ7ZLgNtS1E3T7iqMidxyW5VvD40bjuAblpEP8l6RAnAAAAAAAAAAAAAAAAAAD1JgAAAAAAAAAAAAAAAAAAAXHi2+CV3/n/AAAAAAAAAABC+rcMAAAAAAAAAAAAAAAA/v///xkAAAAAAAAAAAAAAAAAAAA=",
+    "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]",
+    "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 105 of 133472 compute units",
+    "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
+    "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]",
+    "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 105 of 131100 compute units",
+    "Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success",
+    "Program log: AnchorError thrown in programs/amm/src/instructions/swap_v2.rs:364. Error Code: TooLittleOutputReceived. Error Number: 6018. Error Message: Too little output received.",
+    "Program log: Left: 9973",
+    "Program log: Right: 20000",
+    "Program DRayAUgENGQBKVaX8owNhgzkEDyoHTGVEGHVJT1E9pfH consumed 46315 of 172721 compute units",
+    "Program DRayAUgENGQBKVaX8owNhgzkEDyoHTGVEGHVJT1E9pfH failed: custom program error: 0x1782",
+    "Program DTFgRcxF6KWyrsTqWM9Lpzdtcc6FF7NqePkEMawQ7xBA consumed 73594 of 200000 compute units",
+    "Program DTFgRcxF6KWyrsTqWM9Lpzdtcc6FF7NqePkEMawQ7xBA failed: custom program error: 0x1782"
+  ]
+}
