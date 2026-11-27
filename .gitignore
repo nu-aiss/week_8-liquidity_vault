@@ -6,4 +6,4 @@ node_modules/
 .DS_Store
 **/id.json
 **/*keypair*.json
-**/*-keypair.json
+**/*-keypair.jsonclmm-tools/logs/
