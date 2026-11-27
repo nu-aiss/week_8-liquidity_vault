@@ -7,3 +7,4 @@ node_modules/
 **/id.json
 **/*keypair*.json
 **/*-keypair.jsonclmm-tools/logs/
+clmm-tools/logs/
