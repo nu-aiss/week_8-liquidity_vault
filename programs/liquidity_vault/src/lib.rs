@@ -20,6 +20,12 @@ use raydium_clmm_cpi::{
     },
 };
 
+pub mod week13;
+pub use week13::*;
+
+pub mod week13_close;
+pub use week13_close::*;
+
 declare_id!("DTFgRcxF6KWyrsTqWM9Lpzdtcc6FF7NqePkEMawQ7xBA");
 
 pub const TOKEN_A: Pubkey =
@@ -40,9 +46,62 @@ pub const POOL_VAULT_A: Pubkey =
 pub const POOL_VAULT_B: Pubkey =
     pubkey!("AEhnX24oC7fuUeQe3sH8ByXAupEw2ryxW4jjWV3Sh6qZ");
 
-#[program]
-pub mod liquidity_vault {
-    use super::*;
+    #[program]
+    pub mod liquidity_vault {
+        use super::*;
+
+    pub fn decrease_clmm_liquidity<'info>(
+        ctx: Context<'info, DecreaseClmmLiquidity<'info>>,
+        liquidity: u128,
+        amount_a_min: u64,
+        amount_b_min: u64,
+    ) -> Result<()> {
+        week13_close::execute_decrease_clmm_liquidity(
+            ctx,
+            liquidity,
+            amount_a_min,
+            amount_b_min,
+        )
+    }
+
+    pub fn collect_clmm_fees<'info>(
+        ctx: Context<'info, DecreaseClmmLiquidity<'info>>,
+    ) -> Result<()> {
+        week13_close::execute_decrease_clmm_liquidity(
+            ctx,
+            0,
+            0,
+            0,
+        )
+    }
+
+    pub fn close_clmm_position<'info>(
+        ctx: Context<'info, CloseClmmPosition<'info>>,
+    ) -> Result<()> {
+        week13_close::execute_close_clmm_position(ctx)
+    }
+
+        
+        pub fn open_clmm_position<'info>(
+            ctx: Context<'info, OpenClmmPosition<'info>>,
+            tick_lower: i32,
+            tick_upper: i32,
+            lower_start: i32,
+            upper_start: i32,
+            amount_a_max: u64,
+            amount_b_max: u64,
+        ) -> Result<()> {
+            week13::execute_open_clmm_position(
+                ctx,
+                tick_lower,
+                tick_upper,
+                lower_start,
+                upper_start,
+                amount_a_max,
+                amount_b_max,
+            )
+        }
+        
 
     pub fn initialize_vault(
         ctx: Context<InitializeVault>,

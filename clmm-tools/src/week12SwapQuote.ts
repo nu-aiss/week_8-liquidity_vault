@@ -11,7 +11,7 @@ import {
   PROGRAM_ID,
   TOKEN_A,
   TOKEN_B,
-} from "./config";
+} from "./config.js";
 
 const AMOUNT_IN = new BN(10_000); // 0.01 TOKEN A
 const SLIPPAGE = 0.01; // 1%
