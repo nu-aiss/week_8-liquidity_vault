@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
+
 import {
   ComputeBudgetProgram,
   Keypair,
@@ -8,7 +9,9 @@ import {
   SystemProgram,
   Transaction,
   TransactionInstruction,
+  sendAndConfirmTransaction,
 } from '@solana/web3.js';
+
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
@@ -16,6 +19,7 @@ import {
   getAccount,
   getAssociatedTokenAddressSync,
 } from '@solana/spl-token';
+
 import {
   createContext,
   POOL_ID,
@@ -24,7 +28,10 @@ import {
   TOKEN_B,
 } from './config.js';
 
-const MODE: 'prepare' | 'simulate' = 'prepare';
+
+type ExecutionMode = 'prepare' | 'simulate' | 'execute';
+
+const MODE: ExecutionMode = 'simulate';
 
 const VAULT_PROGRAM_ID = new PublicKey(
   'DTFgRcxF6KWyrsTqWM9Lpzdtcc6FF7NqePkEMawQ7xBA'
@@ -54,8 +61,10 @@ const METADATA_PROGRAM = new PublicKey(
   'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s'
 );
 
+
 const TOKEN_A_MAX = 5000n;
 const TOKEN_B_MAX = 5653n;
+
 
 const TICK_LOWER = -1080;
 const TICK_UPPER = 960;
@@ -78,15 +87,27 @@ function requireCondition(
   condition: unknown,
   message: string
 ): asserts condition {
-  if (!condition) throw new Error(message);
+  if (!condition) {
+    throw new Error(message);
+  }
 }
 
-function tickArrayStart(tick: number, spacing: number) {
-  return Math.floor(tick / (spacing * 60)) * spacing * 60;
+function tickArrayStart(
+  tick: number,
+  spacing: number
+): number {
+  return (
+    Math.floor(tick / (spacing * 60)) *
+    spacing *
+    60
+  );
 }
 
-function deriveTickArray(start: number) {
+function deriveTickArray(
+  start: number
+): PublicKey {
   const index = Buffer.alloc(4);
+
   index.writeInt32BE(start);
 
   return PublicKey.findProgramAddressSync(
@@ -99,7 +120,9 @@ function deriveTickArray(start: number) {
   )[0];
 }
 
-function anchorDiscriminator(name: string): Buffer {
+function anchorDiscriminator(
+  name: string
+): Buffer {
   return createHash('sha256')
     .update(`global:${name}`)
     .digest()
@@ -107,12 +130,22 @@ function anchorDiscriminator(name: string): Buffer {
 }
 
 async function main(): Promise<void> {
-  console.log('=== WEEK 13 OPEN POSITION ===');
+  console.log(
+    '========== WEEK 13 OPEN CLMM POSITION =========='
+  );
+
   console.log('Mode:', MODE);
+  console.log('Network: Devnet');
+
   console.log('Real transactions sent: 0');
 
-  const { connection, owner, raydium } =
-    await createContext();
+
+  const {
+    connection,
+    owner,
+    raydium,
+  } = await createContext();
+
 
   const idlPath = new URL(
     '../../target/idl/liquidity_vault.json',
@@ -121,7 +154,9 @@ async function main(): Promise<void> {
 
   const idl = JSON.parse(
     fs.readFileSync(idlPath, 'utf8')
-  ) as { instructions: IdlInstruction[] };
+  ) as {
+    instructions: IdlInstruction[];
+  };
 
   const instruction = idl.instructions.find(
     ix => ix.name === 'open_clmm_position'
@@ -132,15 +167,27 @@ async function main(): Promise<void> {
     'open_clmm_position missing from IDL'
   );
 
+
   const [
     accountA,
     accountB,
     poolAccount,
     rpc,
   ] = await Promise.all([
-    getAccount(connection, STRATEGY_A),
-    getAccount(connection, STRATEGY_B),
-    connection.getAccountInfo(POOL_ID),
+    getAccount(
+      connection,
+      STRATEGY_A
+    ),
+
+    getAccount(
+      connection,
+      STRATEGY_B
+    ),
+
+    connection.getAccountInfo(
+      POOL_ID
+    ),
+
     raydium.clmm.getRpcClmmPoolInfo({
       poolId: POOL_ID.toBase58(),
     }),
@@ -182,6 +229,7 @@ async function main(): Promise<void> {
     'Tick spacing mismatch'
   );
 
+
   const lowerStart = tickArrayStart(
     TICK_LOWER,
     rpc.tickSpacing
@@ -192,14 +240,21 @@ async function main(): Promise<void> {
     rpc.tickSpacing
   );
 
-  const lowerArray = deriveTickArray(lowerStart);
-  const upperArray = deriveTickArray(upperStart);
+  const lowerArray = deriveTickArray(
+    lowerStart
+  );
 
-  const [lowerInfo, upperInfo] =
-    await connection.getMultipleAccountsInfo([
-      lowerArray,
-      upperArray,
-    ]);
+  const upperArray = deriveTickArray(
+    upperStart
+  );
+
+  const [
+    lowerInfo,
+    upperInfo,
+  ] = await connection.getMultipleAccountsInfo([
+    lowerArray,
+    upperArray,
+  ]);
 
   requireCondition(
     lowerInfo?.owner.equals(PROGRAM_ID) &&
@@ -207,9 +262,12 @@ async function main(): Promise<void> {
     'Required tick arrays are unavailable'
   );
 
+
   const [derivedVault] =
     PublicKey.findProgramAddressSync(
-      [Buffer.from('vault')],
+      [
+        Buffer.from('vault'),
+      ],
       VAULT_PROGRAM_ID
     );
 
@@ -217,6 +275,7 @@ async function main(): Promise<void> {
     derivedVault.equals(VAULT_PDA),
     'Vault PDA mismatch'
   );
+
 
   const [clmmPosition] =
     PublicKey.findProgramAddressSync(
@@ -227,18 +286,26 @@ async function main(): Promise<void> {
       VAULT_PROGRAM_ID
     );
 
+  const existingPosition =
+    await connection.getAccountInfo(
+      clmmPosition
+    );
+
   requireCondition(
-    !(await connection.getAccountInfo(clmmPosition)),
+    existingPosition === null,
     'Active CLMM position state already exists'
   );
 
+
   const nftMint = Keypair.generate();
 
-  const nftAccount = getAssociatedTokenAddressSync(
-    nftMint.publicKey,
-    VAULT_PDA,
-    true
-  );
+  const nftAccount =
+    getAssociatedTokenAddressSync(
+      nftMint.publicKey,
+      VAULT_PDA,
+      true
+    );
+
 
   const [personalPosition] =
     PublicKey.findProgramAddressSync(
@@ -248,6 +315,7 @@ async function main(): Promise<void> {
       ],
       PROGRAM_ID
     );
+
 
   const [metadataAccount] =
     PublicKey.findProgramAddressSync(
@@ -259,82 +327,171 @@ async function main(): Promise<void> {
       METADATA_PROGRAM
     );
 
-  const addresses: Record<string, PublicKey> = {
+
+  const addresses: Record<
+    string,
+    PublicKey
+  > = {
     admin: owner.publicKey,
+
     vault: VAULT_PDA,
+
     clmm_position: clmmPosition,
+
     token_a_mint: TOKEN_A,
+
     token_b_mint: TOKEN_B,
+
     strategy_token_a: STRATEGY_A,
+
     strategy_token_b: STRATEGY_B,
+
     pool_state: POOL_ID,
+
     pool_vault_a: POOL_VAULT_A,
+
     pool_vault_b: POOL_VAULT_B,
-    position_nft_mint: nftMint.publicKey,
-    position_nft_account: nftAccount,
-    personal_position: personalPosition,
-    protocol_position: PROGRAM_ID,
-    tick_array_lower: lowerArray,
-    tick_array_upper: upperArray,
-    metadata_account: metadataAccount,
-    rent: SYSVAR_RENT_PUBKEY,
-    system_program: SystemProgram.programId,
-    token_program: TOKEN_PROGRAM_ID,
-    token_program_2022: TOKEN_2022_PROGRAM_ID,
-    associated_token_program: ASSOCIATED_TOKEN_PROGRAM_ID,
-    metadata_program: METADATA_PROGRAM,
-    raydium_program: PROGRAM_ID,
+
+    position_nft_mint:
+      nftMint.publicKey,
+
+    position_nft_account:
+      nftAccount,
+
+    personal_position:
+      personalPosition,
+
+    protocol_position:
+      PROGRAM_ID,
+
+    tick_array_lower:
+      lowerArray,
+
+    tick_array_upper:
+      upperArray,
+
+    metadata_account:
+      metadataAccount,
+
+    rent:
+      SYSVAR_RENT_PUBKEY,
+
+    system_program:
+      SystemProgram.programId,
+
+    token_program:
+      TOKEN_PROGRAM_ID,
+
+    token_program_2022:
+      TOKEN_2022_PROGRAM_ID,
+
+    associated_token_program:
+      ASSOCIATED_TOKEN_PROGRAM_ID,
+
+    metadata_program:
+      METADATA_PROGRAM,
+
+    raydium_program:
+      PROGRAM_ID,
   };
 
-  const keys = instruction.accounts.map(account => {
-    const pubkey = addresses[account.name];
+  const keys =
+    instruction.accounts.map(
+      account => {
+        const pubkey =
+          addresses[account.name];
 
-    requireCondition(
-      pubkey,
-      `Missing account mapping: ${account.name}`
+        requireCondition(
+          pubkey,
+          `Missing account mapping: ${account.name}`
+        );
+
+        return {
+          pubkey,
+
+          isSigner: Boolean(
+            account.signer ??
+              account.isSigner
+          ),
+
+          isWritable: Boolean(
+            account.writable ??
+              account.isMut
+          ),
+        };
+      }
     );
-
-    return {
-      pubkey,
-      isSigner: Boolean(
-        account.signer ?? account.isSigner
-      ),
-      isWritable: Boolean(
-        account.writable ?? account.isMut
-      ),
-    };
-  });
 
   requireCondition(
     keys.some(
       key =>
-        key.pubkey.equals(nftMint.publicKey) &&
+        key.pubkey.equals(
+          nftMint.publicKey
+        ) &&
         key.isSigner
     ),
     'NFT mint must be a transaction signer'
   );
 
+
   const discriminator =
     instruction.discriminator
-      ? Buffer.from(instruction.discriminator)
-      : anchorDiscriminator(instruction.name);
+      ? Buffer.from(
+          instruction.discriminator
+        )
+      : anchorDiscriminator(
+          instruction.name
+        );
 
-  const data = Buffer.alloc(8 + 4 * 4 + 8 * 2);
+  const data = Buffer.alloc(
+    8 + 4 * 4 + 8 * 2
+  );
 
-  discriminator.copy(data, 0);
-
-  data.writeInt32LE(TICK_LOWER, 8);
-  data.writeInt32LE(TICK_UPPER, 12);
-  data.writeInt32LE(lowerStart, 16);
-  data.writeInt32LE(upperStart, 20);
-  data.writeBigUInt64LE(TOKEN_A_MAX, 24);
-  data.writeBigUInt64LE(TOKEN_B_MAX, 32);
-
-  const openIx = new TransactionInstruction({
-    programId: VAULT_PROGRAM_ID,
-    keys,
+  discriminator.copy(
     data,
-  });
+    0
+  );
+
+  data.writeInt32LE(
+    TICK_LOWER,
+    8
+  );
+
+  data.writeInt32LE(
+    TICK_UPPER,
+    12
+  );
+
+  data.writeInt32LE(
+    lowerStart,
+    16
+  );
+
+  data.writeInt32LE(
+    upperStart,
+    20
+  );
+
+  data.writeBigUInt64LE(
+    TOKEN_A_MAX,
+    24
+  );
+
+  data.writeBigUInt64LE(
+    TOKEN_B_MAX,
+    32
+  );
+
+
+  const openIx =
+    new TransactionInstruction({
+      programId:
+        VAULT_PROGRAM_ID,
+
+      keys,
+
+      data,
+    });
 
   const tx = new Transaction().add(
     ComputeBudgetProgram.setComputeUnitLimit({
@@ -343,27 +500,55 @@ async function main(): Promise<void> {
     openIx
   );
 
-  tx.feePayer = owner.publicKey;
+  tx.feePayer =
+    owner.publicKey;
 
   const { blockhash } =
-    await connection.getLatestBlockhash('confirmed');
+    await connection.getLatestBlockhash(
+      'confirmed'
+    );
 
-  tx.recentBlockhash = blockhash;
+  tx.recentBlockhash =
+    blockhash;
 
-  console.log('Pool tick:', rpc.tickCurrent);
-  console.log('Lower tick:', TICK_LOWER);
-  console.log('Upper tick:', TICK_UPPER);
-  console.log('Lower array:', lowerArray.toBase58());
-  console.log('Upper array:', upperArray.toBase58());
 
   console.log(
-    'NFT mint (temporary):',
+    'Pool tick:',
+    rpc.tickCurrent
+  );
+
+  console.log(
+    'Lower tick:',
+    TICK_LOWER
+  );
+
+  console.log(
+    'Upper tick:',
+    TICK_UPPER
+  );
+
+  console.log(
+    'Lower array:',
+    lowerArray.toBase58()
+  );
+
+  console.log(
+    'Upper array:',
+    upperArray.toBase58()
+  );
+
+  console.log(
+    'NFT mint:',
     nftMint.publicKey.toBase58()
   );
 
-  console.log('NFT ATA:', nftAccount.toBase58());
   console.log(
-    'Position PDA:',
+    'NFT ATA:',
+    nftAccount.toBase58()
+  );
+
+  console.log(
+    'Personal position:',
     personalPosition.toBase58()
   );
 
@@ -382,9 +567,14 @@ async function main(): Promise<void> {
     Number(TOKEN_B_MAX) / 1_000_000
   );
 
-  console.log('Instruction accounts:', keys.length);
+  console.log(
+    'Instruction accounts:',
+    keys.length
+  );
 
-  const message = tx.compileMessage();
+
+  const message =
+    tx.compileMessage();
 
   requireCondition(
     message.serialize().length <= 1232,
@@ -396,8 +586,26 @@ async function main(): Promise<void> {
     message.serialize().length
   );
 
+  if (MODE === 'prepare') {
+    console.log(
+      'PREPARATION SUCCESS'
+    );
+
+    console.log(
+      'No simulation requested.'
+    );
+
+    console.log(
+      'REAL TRANSACTIONS SENT: 0'
+    );
+
+    return;
+  }
+
   if (MODE === 'simulate') {
-    tx.partialSign(owner, nftMint);
+    console.log(
+      '========== SIMULATION =========='
+    );
 
     const simulation =
       await connection.simulateTransaction(
@@ -407,12 +615,14 @@ async function main(): Promise<void> {
 
     console.log(
       'Simulation error:',
-      JSON.stringify(simulation.value.err)
+      JSON.stringify(
+        simulation.value.err
+      )
     );
 
     console.log(
       simulation.value.logs?.join('\n') ??
-      'No simulation logs'
+        'No simulation logs'
     );
 
     requireCondition(
@@ -420,19 +630,94 @@ async function main(): Promise<void> {
       'Open position simulation failed'
     );
 
-    console.log('SIMULATION SUCCESS');
-  } else {
-    console.log('PREPARATION SUCCESS');
-    console.log('Simulation not requested.');
+    console.log(
+      'SIMULATION SUCCESS'
+    );
+
+    console.log(
+      'REAL TRANSACTIONS SENT: 0'
+    );
+
+    return;
   }
 
-  console.log('REAL TRANSACTIONS SENT: 0');
+  if (MODE === 'execute') {
+    console.log(
+      '========== REAL DEVNET EXECUTION =========='
+    );
+
+    console.log(
+      'Sending real Devnet transaction...'
+    );
+
+    console.log(
+      'NFT mint:',
+      nftMint.publicKey.toBase58()
+    );
+
+    console.log(
+      'Personal position:',
+      personalPosition.toBase58()
+    );
+
+    console.log(
+      'CLMM state:',
+      clmmPosition.toBase58()
+    );
+
+    const signature =
+      await sendAndConfirmTransaction(
+        connection,
+        tx,
+        [
+          owner,
+          nftMint,
+        ],
+        {
+          commitment: 'confirmed',
+          skipPreflight: false,
+        }
+      );
+
+    console.log(
+      'OPEN POSITION SUCCESS'
+    );
+
+    console.log(
+      'Transaction signature:',
+      signature
+    );
+
+    console.log(
+      'NFT mint:',
+      nftMint.publicKey.toBase58()
+    );
+
+    console.log(
+      'Personal position:',
+      personalPosition.toBase58()
+    );
+
+    console.log(
+      'CLMM state:',
+      clmmPosition.toBase58()
+    );
+
+    console.log(
+      'REAL TRANSACTIONS SENT: 1'
+    );
+
+    return;
+  }
 }
+
 
 main().catch((error: unknown) => {
   console.error(
     'WEEK 13 OPEN FAILED:',
-    error instanceof Error ? error.message : String(error)
+    error instanceof Error
+      ? error.message
+      : String(error)
   );
 
   process.exitCode = 1;
