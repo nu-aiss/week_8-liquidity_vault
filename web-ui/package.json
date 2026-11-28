@@ -1,0 +1,35 @@
+{
+    "name": "liquidity-vault-web-ui",
+    "private": true,
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite --host 127.0.0.1",
+        "build": "tsc -b && vite build",
+        "typecheck": "tsc --noEmit",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "@anchor-lang/core": "1.1.2",
+        "@solana/spl-token": "0.4.14",
+        "@solana/wallet-adapter-phantom": "0.9.29",
+        "@solana/wallet-adapter-react": "0.15.40",
+        "@solana/wallet-adapter-react-ui": "0.9.39",
+        "@solana/web3.js": "1.99.0",
+        "buffer": "6.0.3",
+        "react": "18.3.1",
+        "react-dom": "18.3.1"
+    },
+    "devDependencies": {
+        "@types/node": "22.15.30",
+        "@types/react": "18.3.12",
+        "@types/react-dom": "18.3.1",
+        "@vitejs/plugin-react": "4.7.0",
+        "typescript": "5.7.3",
+        "vite": "6.3.5"
+    },
+    "overrides": {
+        "@types/react": "18.3.12",
+        "@types/react-dom": "18.3.1"
+    }
+}
